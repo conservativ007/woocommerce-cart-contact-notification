@@ -63,6 +63,21 @@ class Ismat_Cart_Contact_Notification
       '1.0.0'
     );
 
+    wp_enqueue_style(
+      'toastify-css',
+      get_stylesheet_directory_uri() . '/assets/css/toastify/toastify.css',
+      array(),
+      '1.12.0'
+    );
+
+    wp_enqueue_script(
+      'toastify-js',
+      get_stylesheet_directory_uri() . '/assets/js/toastify/toastify.js',
+      array(),
+      '1.12.0',
+      true
+    );
+
     wp_enqueue_script(
       'cart-contact-utils-js',
       plugin_dir_url(__FILE__) . 'assets/js/cart-utils.js',
@@ -74,7 +89,7 @@ class Ismat_Cart_Contact_Notification
     wp_enqueue_script(
       'cart-contact-notification-js',
       plugin_dir_url(__FILE__) . 'assets/js/notification.js',
-      array('jquery', 'cart-contact-utils-js'),
+      array('jquery', 'cart-contact-utils-js', 'toastify-js'),
       '1.0.0',
       true
     );
