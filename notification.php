@@ -18,6 +18,10 @@ class Ismat_Cart_Contact_Notification
     'enabled_default' => '1',
     'interval_hours' => 2,
     'email_to' => 'alisa3d2007@gmail.com, info@ismat.ru',
+    'telegram_redirect_url' => 'https://t.me/IsmatDecor_official?text=',
+    'vk_bot_lead_endpoint' => 'https://vk-bot.ismatdecor.ru/lead/cart',
+    'vk_bot_lead_secret' => 'ismat_cart_leads_2026',
+    'vk_redirect_url' => 'https://vk.com/ismatdecor',
     'notification_text' => 'Нашли дешевле ?',
     'notification_action' => 'Напишите НАМ!',
     'modal_title' => 'Куда вам написать?',
@@ -112,6 +116,14 @@ class Ismat_Cart_Contact_Notification
         'error' => $this->settings['error_text'],
       ),
       'contactMethods' => $this->settings['contact_methods'],
+      'integrations' => array(
+        'telegram' => array(
+          'redirectUrl' => $this->settings['telegram_redirect_url'],
+        ),
+        'vk' => array(
+          'redirectUrl' => $this->settings['vk_redirect_url'],
+        ),
+      ),
     );
 
     wp_localize_script('cart-contact-notification-js', 'cartContactNotificationData', $data);
@@ -138,15 +150,23 @@ class Ismat_Cart_Contact_Notification
       wp_send_json_error(array('message' => 'Cart is empty.'), 400);
     }
 
-    $sent = wp_mail(
-      $this->get_email_to(),
-      'Заявка по корзине с сайта ' . wp_parse_url(home_url(), PHP_URL_HOST),
-      $this->build_email_message($phone, $contact_method),
-      array('Content-Type: text/html; charset=UTF-8')
-    );
+    $email_sent = $this->send_to_email($phone, $contact_method);
 
-    if (!$sent) {
+    if (!$email_sent) {
       wp_send_json_error(array('message' => 'Email was not sent.'), 500);
+    }
+
+    if ($contact_method === 'vk') {
+      $sent = $this->send_to_vk($phone, $this->build_plain_message($phone, $contact_method));
+
+      if (is_wp_error($sent)) {
+        wp_send_json_error(array('message' => $sent->get_error_message()), 500);
+      }
+
+      wp_send_json_success(array(
+        'message' => $this->settings['success_text'],
+        'redirectUrl' => !empty($sent['redirect_url']) ? $sent['redirect_url'] : $this->settings['vk_redirect_url'],
+      ));
     }
 
     wp_send_json_success(array('message' => $this->settings['success_text']));
@@ -169,6 +189,99 @@ class Ismat_Cart_Contact_Notification
     $emails = array_filter(array_map('sanitize_email', $emails));
 
     return $emails ? array_values($emails) : get_option('admin_email');
+  }
+
+  private function send_to_email($phone, $contact_method)
+  {
+    return wp_mail(
+      $this->get_email_to(),
+      'Заявка по корзине с сайта ' . wp_parse_url(home_url(), PHP_URL_HOST),
+      $this->build_email_message($phone, $contact_method),
+      array('Content-Type: text/html; charset=UTF-8')
+    );
+  }
+
+  private function send_to_vk($phone, $message)
+  {
+    $endpoint = trim($this->settings['vk_bot_lead_endpoint']);
+    $secret = trim($this->settings['vk_bot_lead_secret']);
+
+    if ($endpoint === '' || $secret === '') {
+      return new WP_Error('vk_not_configured', 'VK bot lead endpoint is not configured.');
+    }
+
+    $response = wp_remote_post($endpoint, array(
+      'timeout' => 12,
+      'headers' => array(
+        'Content-Type' => 'application/json',
+        'X-VK-BOT-SECRET' => $secret,
+      ),
+      'body' => wp_json_encode(array(
+        'phone' => $phone,
+        'contact_method' => 'VK',
+        'cart_url' => wc_get_cart_url(),
+        'items' => $this->get_cart_rows_for_api(),
+        'message' => $message,
+      )),
+    ));
+
+    if (is_wp_error($response)) {
+      return $response;
+    }
+
+    $status_code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+
+    if ($status_code < 200 || $status_code >= 300) {
+      error_log('VK bot lead endpoint error: HTTP ' . $status_code . ' ' . $body);
+
+      return new WP_Error(
+        'vk_bot_error',
+        'VK bot endpoint returned HTTP ' . $status_code . ': ' . $body
+      );
+    }
+
+    $data = json_decode($body, true);
+
+    return is_array($data) ? $data : array('ok' => true);
+  }
+
+  private function get_cart_rows_for_api()
+  {
+    return array_map(
+      function ($row) {
+        return array(
+          'name' => $row['name'],
+          'url' => $row['url'],
+          'quantity' => $row['quantity'],
+        );
+      },
+      $this->get_cart_rows()
+    );
+  }
+
+  private function build_plain_message($phone, $contact_method)
+  {
+    $method_label = $this->settings['contact_methods'][$contact_method];
+    $lines = array(
+      'Новая заявка по корзине',
+      'Телефон: ' . $phone,
+      'Предпочитаемый способ связи: ' . $method_label,
+    );
+
+    $lines[] = 'Корзина:';
+
+    foreach ($this->get_cart_rows() as $row) {
+      $lines[] = '- ' . $row['name'] . ' x ' . $row['quantity'];
+
+      if ($row['url']) {
+        $lines[] = $row['url'];
+      }
+    }
+
+    $lines[] = 'Страница корзины: ' . wc_get_cart_url();
+
+    return implode("\n", $lines);
   }
 
   private function build_email_message($phone, $contact_method)

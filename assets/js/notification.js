@@ -20,10 +20,20 @@
 
     let notificationShown = false;
     let modalCreated = false;
+    let checkScheduled = false;
+    let checkStarted = false;
+    let lastCartData = null;
 
     async function checkCart() {
+      if (checkStarted || !canAttemptNotification()) {
+        return;
+      }
+
+      checkStarted = true;
+
       try {
         const data = await window.checkCart42();
+        lastCartData = data || null;
 
         if (
           data &&
@@ -34,6 +44,39 @@
         }
       } catch (error) {
         console.error("Cart notification error:", error);
+      }
+    }
+
+    function canAttemptNotification() {
+      return (
+        !notificationShown &&
+        localStorage.getItem(storageKeys.sent) !== "1" &&
+        canShowByInterval()
+      );
+    }
+
+    function scheduleCartCheck() {
+      if (checkScheduled || !canAttemptNotification()) {
+        return;
+      }
+
+      checkScheduled = true;
+
+      const startCheck = function () {
+        window.removeEventListener("scroll", startCheck);
+        window.removeEventListener("pointerdown", startCheck);
+        window.removeEventListener("keydown", startCheck);
+        checkCart();
+      };
+
+      window.addEventListener("scroll", startCheck, { once: true, passive: true });
+      window.addEventListener("pointerdown", startCheck, { once: true });
+      window.addEventListener("keydown", startCheck, { once: true });
+
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(startCheck, { timeout: 4000 });
+      } else {
+        setTimeout(startCheck, 4000);
       }
     }
 
@@ -191,7 +234,7 @@
       modalCreated = true;
     }
 
-    function submitForm(event) {
+    async function submitForm(event) {
       event.preventDefault();
 
       const form = $(event.currentTarget);
@@ -205,6 +248,20 @@
       submit.prop("disabled", true);
       status.removeClass("ccn-modal__status--error").text("");
 
+      let telegramRedirectUrl = "";
+
+      if (contactMethod === "tg") {
+        try {
+          const cartData = lastCartData || (await window.checkCart42());
+          telegramRedirectUrl = buildTelegramUrl(phone, cartData);
+        } catch (error) {
+          console.error("Telegram redirect build error:", error);
+          status.addClass("ccn-modal__status--error").text(config.texts.error);
+          submit.prop("disabled", false);
+          return;
+        }
+      }
+
       $.ajax({
         url: config.ajaxUrl,
         method: "POST",
@@ -216,20 +273,72 @@
           contact_method: contactMethod,
         },
       })
-        .done(function () {
+        .done(function (response) {
           localStorage.setItem(storageKeys.sent, "1");
           status.text(config.texts.success);
           setTimeout(function () {
             closeModal();
             // $(".ccn-toast").remove();
+            if (
+              contactMethod === "vk" &&
+              response &&
+              response.data &&
+              response.data.redirectUrl
+            ) {
+              window.location.href = response.data.redirectUrl;
+            }
+
+            if (contactMethod === "tg" && telegramRedirectUrl) {
+              window.location.href = telegramRedirectUrl;
+            }
           }, 1200);
         })
-        .fail(function () {
+        .fail(function (xhr) {
+          console.error("Cart contact notification AJAX error:", xhr.responseText || xhr.statusText);
           status.addClass("ccn-modal__status--error").text(config.texts.error);
         })
         .always(function () {
           submit.prop("disabled", false);
         });
+    }
+
+    function buildTelegramUrl(phone, cartData) {
+      const redirectUrl =
+        config.integrations &&
+        config.integrations.telegram &&
+        config.integrations.telegram.redirectUrl
+          ? config.integrations.telegram.redirectUrl
+          : "https://t.me/IsmatDecor_official?text=";
+
+      const separator = redirectUrl.includes("?text=")
+        ? ""
+        : redirectUrl.includes("?")
+          ? "&text="
+          : "?text=";
+
+      return redirectUrl + separator + encodeURIComponent(buildCartMessage(phone, cartData));
+    }
+
+    function buildCartMessage(phone, cartData) {
+      const lines = [
+        "Здравствуйте, я нашел у вас эти товары дешевле:",
+        "Телефон: " + phone,
+        "Корзина:",
+      ];
+
+      if (cartData && Array.isArray(cartData.items)) {
+        cartData.items.forEach(function (item) {
+          if (item.name) {
+            lines.push(item.name);
+          }
+
+          if (item.permalink) {
+            lines.push(item.permalink);
+          }
+        });
+      }
+
+      return lines.join("\n");
     }
 
     function escapeHtml(value) {
@@ -249,6 +358,6 @@
       localStorage.removeItem(storageKeys.sent);
     });
 
-    setTimeout(checkCart, 500);
+    scheduleCartCheck();
   });
 })(jQuery);
