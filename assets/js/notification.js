@@ -275,18 +275,26 @@
       })
         .done(function (response) {
           localStorage.setItem(storageKeys.sent, "1");
+
+          if (
+            contactMethod === "vk" &&
+            response &&
+            response.data &&
+            response.data.redirectUrl
+          ) {
+            status.html(
+              '<span class="ccn-modal__spinner" aria-hidden="true"></span>' +
+                '<span>Откроем VK. В чате напишите "начать".</span>',
+            );
+            setTimeout(function () {
+              window.location.href = response.data.redirectUrl;
+            }, 2500);
+            return;
+          }
+
           status.text(config.texts.success);
           setTimeout(function () {
             closeModal();
-            // $(".ccn-toast").remove();
-            if (
-              contactMethod === "vk" &&
-              response &&
-              response.data &&
-              response.data.redirectUrl
-            ) {
-              window.location.href = response.data.redirectUrl;
-            }
 
             if (contactMethod === "tg" && telegramRedirectUrl) {
               window.location.href = telegramRedirectUrl;

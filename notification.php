@@ -19,7 +19,7 @@ class Ismat_Cart_Contact_Notification
     'interval_hours' => 2,
     'email_to' => 'alisa3d2007@gmail.com, info@ismat.ru',
     'telegram_redirect_url' => 'https://t.me/IsmatDecor_official?text=',
-    'vk_bot_lead_endpoint' => 'https://vk-bot.ismatdecor.ru/lead/cart',
+    'vk_bot_lead_endpoint' => 'https://vk-cart-lead-bot.ismatdecor.ru/lead/cart',
     'vk_bot_lead_secret' => 'ismat_cart_leads_2026',
     'vk_redirect_url' => 'https://vk.com/ismatdecor',
     'notification_text' => 'Нашли дешевле ?',
