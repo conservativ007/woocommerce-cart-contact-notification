@@ -32,11 +32,16 @@
 .ccn-modal {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: 2147483647;
   display: none;
-  align-items: center;
+  /* align-items: center; */
   justify-content: center;
-  padding: 20px;
+  padding: 10px;
+}
+
+body.ccn-modal-is-open .toastify {
+  z-index: 2147483646 !important;
+  pointer-events: none;
 }
 
 .ccn-modal--open {
@@ -86,6 +91,7 @@
   margin: 0 34px 18px 0;
   font-size: 22px;
   line-height: 1.25;
+  color: #fff;
 }
 
 .ccn-modal__label,
@@ -222,5 +228,18 @@
 
   .ccn-modal__methods {
     grid-template-columns: 1fr;
+  }
+
+  .toastify {
+    right: 12px !important;
+    left: auto !important;
+    transform: none !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .toastify.on {
+    right: 12px !important;
+    left: auto !important;
+    transform: none !important;
   }
 }

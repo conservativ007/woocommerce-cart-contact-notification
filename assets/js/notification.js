@@ -69,7 +69,10 @@
         checkCart();
       };
 
-      window.addEventListener("scroll", startCheck, { once: true, passive: true });
+      window.addEventListener("scroll", startCheck, {
+        once: true,
+        passive: true,
+      });
       window.addEventListener("pointerdown", startCheck, { once: true });
       window.addEventListener("keydown", startCheck, { once: true });
 
@@ -132,7 +135,7 @@
         position: "right",
         close: true,
         style: {
-          background: "rgba(0, 0, 0, 0.7)",
+          background: "rgba(0, 0, 0, 0.8)",
           borderRadius: "7px",
           padding: "12px 20px",
         },
@@ -161,11 +164,13 @@
 
     function openModal() {
       ensureModal();
+      $("body").addClass("ccn-modal-is-open");
       $(".ccn-modal").addClass("ccn-modal--open");
       $(".ccn-modal__phone").trigger("focus");
     }
 
     function closeModal() {
+      $("body").removeClass("ccn-modal-is-open");
       $(".ccn-modal").removeClass("ccn-modal--open");
     }
 
@@ -302,7 +307,10 @@
           }, 1200);
         })
         .fail(function (xhr) {
-          console.error("Cart contact notification AJAX error:", xhr.responseText || xhr.statusText);
+          console.error(
+            "Cart contact notification AJAX error:",
+            xhr.responseText || xhr.statusText,
+          );
           status.addClass("ccn-modal__status--error").text(config.texts.error);
         })
         .always(function () {
@@ -324,7 +332,11 @@
           ? "&text="
           : "?text=";
 
-      return redirectUrl + separator + encodeURIComponent(buildCartMessage(phone, cartData));
+      return (
+        redirectUrl +
+        separator +
+        encodeURIComponent(buildCartMessage(phone, cartData))
+      );
     }
 
     function buildCartMessage(phone, cartData) {
